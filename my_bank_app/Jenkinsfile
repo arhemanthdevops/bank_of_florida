@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/your-username/your-bank-app-repo.git'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQubeServer') {
+                    sh 'npm install'
+                    sh 'npm test'
+                    sh 'sonar-scanner'
+                }
+            }
+        }
+
+        stage('Build and Push Docker Image') {
+            steps {
+                script {
+                    docker.build("your-docker-username/bank-app:${env.BUILD_NUMBER}")
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker-credentials') {
+                        docker.push("your-docker-username/bank-app:${env.BUILD_NUMBER}")
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                script {
+                    sh 'terraform init -backend-config="backend.tfvars"'
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Cleanup: Destroy the infrastructure after the pipeline
+            sh 'terraform destroy -auto-approve'
+        }
+    }
+}
